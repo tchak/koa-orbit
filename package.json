@@ -3,6 +3,8 @@
   "repository": "https://github.com/tchak/koa-orbit",
   "author": "Paul Chavard <github@paul.chavard.net>",
   "license": "MIT",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "dependencies": {
     "@orbit/jsonapi": "^0.17.0-beta.12",
     "@orbit/records": "^0.17.0-beta.12",
@@ -42,5 +44,14 @@
     "lint": "eslint . --ext .ts",
     "prepare": "yarn build",
     "release": "yarn release-it"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "release-it": {
+    "github": {
+      "release": false
+    }
   }
 }

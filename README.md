@@ -1,4 +1,4 @@
-# Orbit Server [![Build Status](https://github.com/tchak/orbit-server/workflows/CI/badge.svg)](https://github.com/tchak/orbit-server/actions)
+# Koa Orbit [![Build Status](https://github.com/tchak/koa-orbit/workflows/CI/badge.svg)](https://github.com/tchak/koa-orbit/actions)
 
 A server interface for Orbit sources
 
@@ -11,5 +11,5 @@ A getting started template is available at [orbit-server-template](https://githu
 Install with yarn:
 
 ```
-yarn add @orbit-server/fastify
+yarn add koa-orbit
 ```
