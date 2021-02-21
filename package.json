@@ -30,6 +30,7 @@
     "orbit-sql": "^0.4.1",
     "prettier": "^2.0.5",
     "qunit": "^2.10.0",
+    "release-it": "^14.4.1",
     "sqlite3": "^5.0.2",
     "supertest": "^6.1.3",
     "ts-node": "^9.1.1",
@@ -40,6 +41,7 @@
     "clean": "rm -rf ./dist",
     "test": "qunit --require ts-node/register 'test/**/*-test.ts'",
     "lint": "eslint . --ext .ts",
-    "prepare": "yarn build"
+    "prepare": "yarn build",
+    "release": "yarn release-it"
   }
 }
