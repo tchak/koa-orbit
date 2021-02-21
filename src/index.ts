@@ -6,6 +6,7 @@ import {
   RecordNotFoundException,
   SchemaError,
   RecordException,
+  RecordSchema,
 } from '@orbit/records';
 import { ClientError, ServerError } from '@orbit/data';
 import {
@@ -18,7 +19,7 @@ import {
   SerializerForFn,
   SerializerClassForFn,
   SerializerSettingsForFn,
-  buildSerializerSettingsFor,
+  UnknownSerializer,
 } from '@orbit/serializers';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
@@ -73,6 +74,32 @@ async function serializeError(
   };
 }
 
+interface SerializerSettings {
+  schema: RecordSchema;
+  serializerFor?: SerializerForFn;
+  serializerClassFor?: SerializerClassForFn;
+  serializerSettingsFor?: SerializerSettingsForFn;
+}
+
+function buildSerializers(settings: SerializerSettings) {
+  const serializerFor = buildJSONAPISerializerFor(settings);
+
+  return {
+    document: serializerFor(
+      JSONAPISerializers.ResourceDocument
+    ) as JSONAPIDocumentSerializer,
+    resourceTypePath: serializerFor(
+      JSONAPISerializers.ResourceTypePath
+    ) as UnknownSerializer,
+    resourceFieldParam: serializerFor(
+      JSONAPISerializers.ResourceFieldParam
+    ) as JSONAPIResourceFieldSerializer,
+    resourceFieldPath: serializerFor(
+      JSONAPISerializers.ResourceFieldPath
+    ) as JSONAPIResourceFieldSerializer,
+  };
+}
+
 export function orbit(settings: ServerSettings): Router {
   const {
     source,
@@ -80,30 +107,16 @@ export function orbit(settings: ServerSettings): Router {
     readonly,
     serializerFor,
     serializerClassFor,
+    serializerSettingsFor,
   } = settings;
   const name = source.name as string;
   const schema = source.schema;
-  const _serializerFor = buildJSONAPISerializerFor({
-    schema: settings.source.schema,
+  const serializers = buildSerializers({
+    schema,
     serializerFor,
     serializerClassFor,
-    serializerSettingsFor: buildSerializerSettingsFor({
-      settingsByType: {
-        [JSONAPISerializers.ResourceField]: {
-          serializationOptions: { inflectors: ['dasherize'] },
-        },
-      },
-    }),
+    serializerSettingsFor,
   });
-  const documentSerializer = _serializerFor(
-    JSONAPISerializers.ResourceDocument
-  ) as JSONAPIDocumentSerializer;
-  const resourceTypeSerializer = _serializerFor(
-    JSONAPISerializers.ResourceTypePath
-  );
-  const resourceFieldSerializer = _serializerFor(
-    JSONAPISerializers.ResourceField
-  ) as JSONAPIResourceFieldSerializer;
 
   const router = new Router({ prefix });
 
@@ -114,17 +127,17 @@ export function orbit(settings: ServerSettings): Router {
       await next();
 
       if (ctx.status === 200 || ctx.status === 201) {
+        ctx.body = serializers.document.serialize(ctx.body);
         ctx.type = CONTENT_TYPE;
-        ctx.body = documentSerializer.serialize(ctx.body);
       }
     } catch (error) {
-      ctx.type = CONTENT_TYPE;
       Object.assign(ctx, serializeError(source, error));
+      ctx.type = CONTENT_TYPE;
     }
   });
 
   for (const type of Object.keys(schema.models)) {
-    const resourceType = resourceTypeSerializer?.serialize(type);
+    const resourceType = serializers.resourceTypePath.serialize(type);
     const resourcePath = `/${resourceType}`;
     const resourcePathWithId = `/${resourceType}/:id`;
 
@@ -140,7 +153,7 @@ export function orbit(settings: ServerSettings): Router {
         (q) =>
           queryBuilderParams(
             schema,
-            resourceFieldSerializer,
+            serializers.resourceFieldParam,
             q.findRecords(type),
             type,
             filter,
@@ -194,7 +207,7 @@ export function orbit(settings: ServerSettings): Router {
         } = ctx;
 
         ctx.request.body.data.id = '0';
-        const { data } = documentSerializer.deserialize(ctx.request.body);
+        const { data } = serializers.document.deserialize(ctx.request.body);
         delete (data as any).id;
 
         const record: OrbitRecord = await source.update(
@@ -216,7 +229,7 @@ export function orbit(settings: ServerSettings): Router {
       });
 
       router.patch(`updateRecord(${type})`, resourcePathWithId, async (ctx) => {
-        const { data } = documentSerializer.deserialize(ctx.request.body);
+        const { data } = serializers.document.deserialize(ctx.request.body);
 
         await source.query((q) => q.findRecord(data as OrbitRecord), {
           raiseNotFoundExceptions: true,
@@ -257,7 +270,7 @@ export function orbit(settings: ServerSettings): Router {
     schema.eachRelationship(
       type,
       (propertyName, { kind, type: relationshipType }) => {
-        const relationshipName = resourceFieldSerializer.serialize(
+        const relationshipName = serializers.resourceFieldPath.serialize(
           propertyName,
           { type: relationshipType as string }
         );
@@ -280,7 +293,7 @@ export function orbit(settings: ServerSettings): Router {
                 (q) =>
                   queryBuilderParams(
                     schema,
-                    resourceFieldSerializer,
+                    serializers.resourceFieldParam,
                     q.findRelatedRecords({ type, id }, propertyName),
                     relationshipType as string,
                     filter,
@@ -309,7 +322,7 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = documentSerializer.deserialize(
+                const { data } = serializers.document.deserialize(
                   ctx.request.body
                 );
 
@@ -338,7 +351,7 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = documentSerializer.deserialize(
+                const { data } = serializers.document.deserialize(
                   ctx.request.body
                 );
 
@@ -369,7 +382,7 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = documentSerializer.deserialize(
+                const { data } = serializers.document.deserialize(
                   ctx.request.body
                 );
 
@@ -429,7 +442,7 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = documentSerializer.deserialize(
+                const { data } = serializers.document.deserialize(
                   ctx.request.body
                 );
 

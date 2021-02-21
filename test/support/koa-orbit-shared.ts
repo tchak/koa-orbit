@@ -16,10 +16,10 @@ export default function (subject: Subject, sourceName: string): void {
       const response = await getPlanets(subject.app as Koa);
 
       assert.equal(response.status, 200);
-      // assert.equal(
-      //   response.headers['content-type'],
-      //   'application/vnd.api+json; charset=utf-8'
-      // );
+      assert.equal(
+        response.headers['content-type'],
+        'application/vnd.api+json; charset=utf-8'
+      );
       assert.deepEqual(response.body, { data: [] });
     });
 
@@ -37,7 +37,7 @@ export default function (subject: Subject, sourceName: string): void {
         response.body.data.attributes,
         compact({
           name: 'Earth',
-          'created-at': response.body.data.attributes['created-at'],
+          createdAt: response.body.data.attributes.createdAt,
         })
       );
     });
@@ -62,7 +62,7 @@ export default function (subject: Subject, sourceName: string): void {
         id,
         attributes: compact({
           name: 'Earth',
-          'created-at': response.body.data.attributes['created-at'],
+          createdAt: response.body.data.attributes.createdAt,
         }),
       });
     });
@@ -98,7 +98,7 @@ export default function (subject: Subject, sourceName: string): void {
         id,
         attributes: compact({
           name: 'Earth 2',
-          'created-at': data.attributes['created-at'],
+          createdAt: data.attributes.createdAt,
         }),
       });
     });
@@ -174,9 +174,9 @@ export default function (subject: Subject, sourceName: string): void {
 
       assert.equal(response.status, 200);
       assert.deepEqual(response.body.data.attributes, {
-        'some-text': 'Some text',
-        'some-number': 2,
-        'some-boolean': true,
+        someText: 'Some text',
+        someNumber: 2,
+        someBoolean: true,
       });
     });
 
@@ -364,9 +364,9 @@ function createTypedModel(app: Koa): Promise<TestResponse> {
       data: {
         type: 'typedModel',
         attributes: {
-          'some-text': 'Some text',
-          'some-number': 2,
-          'some-boolean': true,
+          someText: 'Some text',
+          someNumber: 2,
+          someBoolean: true,
         },
       },
     },
