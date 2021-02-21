@@ -1,6 +1,5 @@
 {
   "name": "koa-orbit",
-  "private": true,
   "repository": "https://github.com/tchak/koa-orbit",
   "author": "Paul Chavard <github@paul.chavard.net>",
   "license": "MIT",
