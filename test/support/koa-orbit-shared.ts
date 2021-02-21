@@ -1,6 +1,5 @@
 import Koa from 'koa';
 import supertest, { Response } from 'supertest';
-import { uuid } from '@orbit/utils';
 import qs from 'qs';
 
 export interface Subject {
@@ -32,7 +31,7 @@ export default function (subject: Subject, sourceName: string): void {
         response.headers.location,
         `/planets/${response.body.data.id}`
       );
-      assert.equal(response.body.data.type, 'planets');
+      assert.equal(response.body.data.type, 'planet');
       assert.ok(response.body.data.id);
       assert.deepEqual(
         response.body.data.attributes,
@@ -59,7 +58,7 @@ export default function (subject: Subject, sourceName: string): void {
 
       assert.equal(response.status, 200);
       assert.deepEqual(response.body.data, {
-        type: 'planets',
+        type: 'planet',
         id,
         attributes: compact({
           name: 'Earth',
@@ -78,7 +77,7 @@ export default function (subject: Subject, sourceName: string): void {
         payload: {
           data: {
             id,
-            type: 'planets',
+            type: 'planet',
             attributes: {
               name: 'Earth 2',
             },
@@ -95,7 +94,7 @@ export default function (subject: Subject, sourceName: string): void {
 
       assert.equal(status, 200);
       assert.deepEqual(data, {
-        type: 'planets',
+        type: 'planet',
         id,
         attributes: compact({
           name: 'Earth 2',
@@ -115,7 +114,7 @@ export default function (subject: Subject, sourceName: string): void {
         payload: {
           data: {
             id: '123',
-            type: 'planets',
+            type: 'planet',
             attributes: {
               name: 'Earth 2',
             },
@@ -241,267 +240,6 @@ export default function (subject: Subject, sourceName: string): void {
       assert.deepEqual(response.body.data[1].attributes.name, 'b');
       assert.deepEqual(response.body.data[2].attributes.name, 'a');
     });
-
-    QUnit.skip('operations', async function (assert) {
-      if (sourceName == 'jsonapi' || sourceName === 'sql') {
-        assert.ok(true);
-        return;
-      }
-      const {
-        body: {
-          data: { id: earthId },
-        },
-      } = await createEarth(subject.app as Koa);
-      const {
-        body: {
-          data: { id: marsId },
-        },
-      } = await createMars(subject.app as Koa);
-      const {
-        body: {
-          data: { id: moonId },
-        },
-      } = await createMoon(subject.app as Koa, earthId);
-
-      const response = await operationsWithEarthAndMars(
-        subject.app as Koa,
-        earthId,
-        marsId,
-        moonId
-      );
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body, {
-        operations: [
-          {
-            data: compact({
-              type: 'planets',
-              id: earthId,
-              attributes: compact({
-                name: 'Beautiful Earth',
-                'created-at':
-                  response.body.operations[0].data.attributes['created-at'],
-              }),
-              relationships: response.body.operations[0].data.relationships,
-            }),
-          },
-          {
-            data: {
-              type: 'moons',
-              id: moonId,
-              attributes: {
-                name: 'Moon',
-              },
-              relationships: {
-                planet: {
-                  data: {
-                    type: 'planets',
-                    id: earthId,
-                  },
-                },
-              },
-            },
-          },
-          {
-            data: {
-              type: 'moons',
-              id: response.body.operations[2].data.id,
-              attributes: {
-                name: 'Phobos',
-              },
-            },
-          },
-          {
-            data: {
-              type: 'moons',
-              id: response.body.operations[3].data.id,
-              attributes: {
-                name: 'Deimos',
-              },
-            },
-          },
-          {
-            data: {
-              type: 'planets',
-              id: marsId,
-              attributes: compact({
-                name: 'Mars',
-                'created-at':
-                  response.body.operations[4].data.attributes['created-at'],
-              }),
-              relationships: response.body.operations[4].data.relationships,
-            },
-          },
-          {
-            data: {
-              type: 'moons',
-              id: response.body.operations[3].data.id,
-              attributes: {
-                name: 'Deimos',
-              },
-              relationships: {
-                planet: {
-                  data: {
-                    type: 'planets',
-                    id: marsId,
-                  },
-                },
-              },
-            },
-          },
-        ],
-      });
-    });
-  });
-
-  QUnit.skip('graphql', function () {
-    test('get planets (empty)', async function (assert) {
-      const response = await getGQLPlanets(subject.app as Koa);
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data, { planets: [] });
-    });
-
-    test('get planets', async function (assert) {
-      await createEarth(subject.app as Koa);
-      const response = await getGQLPlanets(subject.app as Koa);
-
-      assert.equal(response.status, 200);
-      assert.equal(response.body.data.planets.length, 1);
-    });
-
-    test('get planet', async function (assert) {
-      const { body } = await createEarth(subject.app as Koa);
-      const id = body.data.id;
-
-      const response = await getGQLPlanet(subject.app as Koa, id);
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data.planet, {
-        __typename: 'Planet',
-        id,
-        name: 'Earth',
-      });
-    });
-
-    test('get planet moons', async function (assert) {
-      const { body } = await createEarth(subject.app as Koa);
-      const id = body.data.id;
-      await createMoon(subject.app as Koa, id);
-
-      const response = await getGQLPlanetMoons(subject.app as Koa, id);
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data, {
-        planet: {
-          __typename: 'Planet',
-          moons: [
-            {
-              __typename: 'Moon',
-              name: 'Moon',
-              planet: {
-                name: 'Earth',
-              },
-            },
-          ],
-        },
-      });
-    });
-
-    test('get typedModels', async function (assert) {
-      const { body } = await createTypedModel(subject.app as Koa);
-      const id = body.data.id;
-
-      const response = await request(subject.app as Koa, {
-        method: 'POST',
-        url: '/graphql',
-        payload: {
-          query: `{ typedModel(id: "${id}") { someText someNumber someBoolean } }`,
-        },
-      });
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data.typedModel, {
-        someText: 'Some text',
-        someNumber: 2,
-        someBoolean: true,
-      });
-    });
-
-    test('filter', async function (assert) {
-      await createTags(subject.app as Koa);
-
-      const response = await request(subject.app as Koa, {
-        method: 'POST',
-        url: `/graphql`,
-        payload: {
-          query: `{ tags(where: { name: "b" }) { name } }`,
-        },
-      });
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data, {
-        tags: [
-          {
-            name: 'b',
-          },
-        ],
-      });
-    });
-
-    test('sort (asc)', async function (assert) {
-      await createTags(subject.app as Koa);
-
-      const response = await request(subject.app as Koa, {
-        method: 'POST',
-        url: `/graphql`,
-        payload: {
-          query: `{ tags(orderBy: name_ASC) { name } }`,
-        },
-      });
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data, {
-        tags: [
-          {
-            name: 'a',
-          },
-          {
-            name: 'b',
-          },
-          {
-            name: 'c',
-          },
-        ],
-      });
-    });
-
-    test('sort (desc)', async function (assert) {
-      await createTags(subject.app as Koa);
-
-      const response = await request(subject.app as Koa, {
-        method: 'POST',
-        url: `/graphql`,
-        payload: {
-          query: `{ tags(orderBy: name_DESC) { name } }`,
-        },
-      });
-
-      assert.equal(response.status, 200);
-      assert.deepEqual(response.body.data, {
-        tags: [
-          {
-            name: 'c',
-          },
-          {
-            name: 'b',
-          },
-          {
-            name: 'a',
-          },
-        ],
-      });
-    });
   });
 }
 
@@ -527,13 +265,11 @@ async function request(
   const url = options.url + (options.query ? `?${options.query}` : '');
   const method = options.method || 'GET';
   const headers = options.headers || {};
-  const body = options.payload as object;
+  const body = options.payload as any;
 
-  if (url !== '/graphql') {
-    headers['accept'] = 'application/vnd.api+json';
-    if (method === 'POST' || method === 'PATCH') {
-      headers['content-type'] = 'application/vnd.api+json';
-    }
+  headers['accept'] = 'application/vnd.api+json';
+  if (method === 'POST' || method === 'PATCH') {
+    headers['content-type'] = 'application/vnd.api+json';
   }
 
   let response: Response;
@@ -570,24 +306,9 @@ function createEarth(app: Koa): Promise<TestResponse> {
     url: '/planets',
     payload: {
       data: {
-        type: 'planets',
+        type: 'planet',
         attributes: {
           name: 'Earth',
-        },
-      },
-    },
-  });
-}
-
-function createMars(app: Koa): Promise<TestResponse> {
-  return request(app, {
-    method: 'POST',
-    url: '/planets',
-    payload: {
-      data: {
-        type: 'planets',
-        attributes: {
-          name: 'Mars',
         },
       },
     },
@@ -600,14 +321,14 @@ function createMoon(app: Koa, earthId: string): Promise<TestResponse> {
     url: '/moons',
     payload: {
       data: {
-        type: 'moons',
+        type: 'moon',
         attributes: {
           name: 'Moon',
         },
         relationships: {
           planet: {
             data: {
-              type: 'planets',
+              type: 'planet',
               id: earthId,
             },
           },
@@ -635,105 +356,13 @@ function getPlanetMoons(app: Koa, id: string): Promise<TestResponse> {
   });
 }
 
-function operationsWithEarthAndMars(
-  app: Koa,
-  earthId: string,
-  marsId: string,
-  moonId: string
-): Promise<TestResponse> {
-  const phobosId = uuid();
-  const deimosId = uuid();
-
-  return request(app, {
-    method: 'PATCH',
-    url: '/batch',
-    payload: {
-      operations: [
-        {
-          op: 'update',
-          ref: {
-            type: 'planets',
-            id: earthId,
-          },
-          data: {
-            type: 'planets',
-            id: earthId,
-            attributes: {
-              name: 'Beautiful Earth',
-            },
-          },
-        },
-        {
-          op: 'remove',
-          ref: {
-            type: 'moons',
-            id: moonId,
-          },
-        },
-        {
-          op: 'add',
-          ref: {
-            type: 'moons',
-            id: phobosId,
-          },
-          data: {
-            type: 'moons',
-            id: phobosId,
-            attributes: {
-              name: 'Phobos',
-            },
-          },
-        },
-        {
-          op: 'add',
-          ref: {
-            type: 'moons',
-            id: deimosId,
-          },
-          data: {
-            type: 'moons',
-            id: deimosId,
-            attributes: {
-              name: 'Deimos',
-            },
-          },
-        },
-        {
-          op: 'add',
-          ref: {
-            type: 'planets',
-            id: marsId,
-            relationship: 'moons',
-          },
-          data: {
-            type: 'moons',
-            id: phobosId,
-          },
-        },
-        {
-          op: 'update',
-          ref: {
-            type: 'moons',
-            id: deimosId,
-            relationship: 'planet',
-          },
-          data: {
-            type: 'planets',
-            id: marsId,
-          },
-        },
-      ],
-    },
-  });
-}
-
 function createTypedModel(app: Koa): Promise<TestResponse> {
   return request(app, {
     method: 'POST',
     url: '/typed-models',
     payload: {
       data: {
-        type: 'typed-models',
+        type: 'typedModel',
         attributes: {
           'some-text': 'Some text',
           'some-number': 2,
@@ -750,7 +379,7 @@ function createTag(app: Koa): Promise<TestResponse> {
     url: '/tags',
     payload: {
       data: {
-        type: 'tags',
+        type: 'tag',
       },
     },
   });
@@ -762,7 +391,7 @@ async function createTags(app: Koa): Promise<void> {
     url: '/tags',
     payload: {
       data: {
-        type: 'tags',
+        type: 'tag',
         attributes: {
           name: 'a',
         },
@@ -774,7 +403,7 @@ async function createTags(app: Koa): Promise<void> {
     url: '/tags',
     payload: {
       data: {
-        type: 'tags',
+        type: 'tag',
         attributes: {
           name: 'c',
         },
@@ -786,7 +415,7 @@ async function createTags(app: Koa): Promise<void> {
     url: '/tags',
     payload: {
       data: {
-        type: 'tags',
+        type: 'tag',
         attributes: {
           name: 'b',
         },
@@ -801,55 +430,18 @@ function createArticle(app: Koa, tagId: string): Promise<TestResponse> {
     url: '/articles',
     payload: {
       data: {
-        type: 'articles',
+        type: 'article',
         relationships: {
           tags: {
             data: [
               {
-                type: 'tags',
+                type: 'tag',
                 id: tagId,
               },
             ],
           },
         },
       },
-    },
-  });
-}
-
-function getGQLPlanets(app: Koa): Promise<TestResponse> {
-  return request(app, {
-    method: 'POST',
-    url: '/graphql',
-    payload: {
-      query: '{ planets { __typename id name } }',
-    },
-  });
-}
-
-function getGQLPlanet(app: Koa, id: string): Promise<TestResponse> {
-  return request(app, {
-    method: 'POST',
-    url: '/graphql',
-    payload: {
-      query: `{ planet(id: "${id}") { __typename id name } }`,
-    },
-  });
-}
-
-function getGQLPlanetMoons(app: Koa, id: string): Promise<TestResponse> {
-  return request(app, {
-    method: 'POST',
-    url: '/graphql',
-    payload: {
-      query: `{ planet(id: "${id}") {
-        __typename
-        moons {
-          __typename
-          name
-          planet { name }
-        }
-      } }`,
     },
   });
 }

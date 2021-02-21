@@ -3,34 +3,37 @@ import {
   FilterQBParam,
   FindRecordsTerm,
   FindRelatedRecordsTerm,
-} from '@orbit/data';
-import { JSONAPISerializer } from '@orbit/jsonapi';
+  RecordSchema,
+} from '@orbit/records';
+import { JSONAPIResourceFieldSerializer } from '@orbit/jsonapi';
 
 export function queryBuilderParams(
-  serializer: JSONAPISerializer,
+  schema: RecordSchema,
+  serializer: JSONAPIResourceFieldSerializer,
   term: FindRecordsTerm | FindRelatedRecordsTerm,
   type: string,
   filter?: Record<string, string>,
   sort?: string
 ): FindRecordsTerm | FindRelatedRecordsTerm {
   if (filter) {
-    term = term.filter(...filterQBParams(serializer, type, filter));
+    term = term.filter(...filterQBParams(schema, serializer, type, filter));
   }
   if (sort) {
-    term = term.sort(...sortQBParams(serializer, type, sort));
+    term = term.sort(...sortQBParams(schema, serializer, type, sort));
   }
   return term;
 }
 
 function filterQBParams(
-  serializer: JSONAPISerializer,
+  schema: RecordSchema,
+  serializer: JSONAPIResourceFieldSerializer,
   type: string,
   filter: Record<string, string>
 ): FilterQBParam[] {
   const params: FilterQBParam[] = [];
   for (const property in filter) {
-    const attribute = serializer.recordAttribute(type, property);
-    if (serializer.schema.hasAttribute(type, attribute)) {
+    const attribute = serializer.deserialize(property, { type }) as string;
+    if (schema.hasAttribute(type, attribute)) {
       params.push({
         op: 'equal',
         attribute,
@@ -42,18 +45,19 @@ function filterQBParams(
 }
 
 function sortQBParams(
-  serializer: JSONAPISerializer,
+  schema: RecordSchema,
+  serializer: JSONAPIResourceFieldSerializer,
   type: string,
   sort: string
 ): SortQBParam[] {
   const params: SortQBParam[] = [];
   for (const property of sort.split(',')) {
     const desc = property.startsWith('-');
-    const attribute = serializer.recordAttribute(
-      type,
-      desc ? property.substring(1) : property
-    );
-    if (serializer.schema.hasAttribute(type, attribute)) {
+    const attribute = serializer.deserialize(
+      desc ? property.substring(1) : property,
+      { type }
+    ) as string;
+    if (schema.hasAttribute(type, attribute)) {
       params.push({
         attribute,
         order: desc ? 'descending' : 'ascending',

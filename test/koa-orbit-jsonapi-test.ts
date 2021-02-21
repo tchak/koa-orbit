@@ -1,5 +1,6 @@
 import Koa from 'koa';
-import JSONAPISource from '@orbit/jsonapi';
+import JSONAPISource, { JSONAPISerializers } from '@orbit/jsonapi';
+import { buildSerializerSettingsFor } from '@orbit/serializers';
 import { AddressInfo } from 'net';
 import { Server } from 'http';
 import Orbit from '@orbit/core';
@@ -54,6 +55,13 @@ QUnit.module('Koa Orbit (jsonapi)', function (hooks) {
     source = new JSONAPISource({
       schema,
       host,
+      serializerSettingsFor: buildSerializerSettingsFor({
+        settingsByType: {
+          [JSONAPISerializers.ResourceField]: {
+            serializationOptions: { inflectors: ['dasherize'] },
+          },
+        },
+      }),
     });
 
     const router = orbit({ source });

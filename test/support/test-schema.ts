@@ -1,6 +1,6 @@
-import { Schema } from '@orbit/data';
+import { RecordSchema } from '@orbit/records';
 
-export default new Schema({
+export default new RecordSchema({
   models: {
     planet: {
       attributes: {
@@ -16,8 +16,8 @@ export default new Schema({
       },
       relationships: {
         moons: {
-          type: 'hasMany',
-          model: 'moon',
+          kind: 'hasMany',
+          type: 'moon',
           inverse: 'planet',
           dependent: 'remove',
         },
@@ -31,8 +31,8 @@ export default new Schema({
       },
       relationships: {
         planet: {
-          type: 'hasOne',
-          model: 'planet',
+          kind: 'hasOne',
+          type: 'planet',
           inverse: 'moons',
         },
       },
@@ -49,8 +49,8 @@ export default new Schema({
     article: {
       relationships: {
         tags: {
-          type: 'hasMany',
-          model: 'tag',
+          kind: 'hasMany',
+          type: 'tag',
           inverse: 'articles',
         },
       },
@@ -61,8 +61,8 @@ export default new Schema({
       },
       relationships: {
         articles: {
-          type: 'hasMany',
-          model: 'article',
+          kind: 'hasMany',
+          type: 'article',
           inverse: 'tags',
         },
       },
