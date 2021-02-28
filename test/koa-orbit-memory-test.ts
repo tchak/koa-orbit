@@ -3,7 +3,7 @@ import MemorySource from '@orbit/memory';
 
 import schema from './support/test-schema';
 import tests, { Subject } from './support/koa-orbit-shared';
-import { orbit } from '../src';
+import createJSONAPIRouter from '../src';
 
 let app: Koa;
 let source: MemorySource;
@@ -14,7 +14,7 @@ QUnit.module('Koa Orbit (memory)', function (hooks) {
     app = new Koa();
     source = new MemorySource({ schema });
 
-    const router = orbit({ source });
+    const router = createJSONAPIRouter({ source });
     app.use(router.routes());
     app.use(router.allowedMethods());
 

@@ -3,7 +3,7 @@ import SQLSource from 'orbit-sql';
 
 import schema from './support/test-schema';
 import tests, { Subject } from './support/koa-orbit-shared';
-import { orbit } from '../src';
+import createJSONAPIRouter from '../src';
 
 let app: Koa;
 let source: SQLSource;
@@ -21,7 +21,7 @@ QUnit.module('Koa Orbit (sql)', function (hooks) {
       },
     });
 
-    const router = orbit({ source });
+    const router = createJSONAPIRouter({ source });
     app.use(router.routes());
     app.use(router.allowedMethods());
 

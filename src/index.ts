@@ -24,7 +24,7 @@ export interface ServerSettings {
 
 const CONTENT_TYPE = 'application/vnd.api+json; charset=utf-8';
 
-export function orbit(settings: ServerSettings): Router {
+export default function createJSONAPIRouter(settings: ServerSettings): Router {
   const {
     source,
     prefix,
