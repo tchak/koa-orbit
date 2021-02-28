@@ -105,7 +105,7 @@ export default function (subject: Subject, sourceName: string): void {
     });
 
     test('update not found', async function (assert) {
-      if (sourceName == 'memory') {
+      if (sourceName == 'jsonapi') {
         assert.ok(true);
         return;
       }

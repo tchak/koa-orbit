@@ -152,15 +152,14 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
         const recordIdentity = { type, id };
         const record = serializer.deserializeDocument(ctx.request.body);
 
-        await source.query((q) => q.findRecord(recordIdentity), {
-          raiseNotFoundExceptions: true,
-          from: 'jsonapi',
-          [name]: { headers },
-        });
-        await source.update((t) => t.updateRecord(record), {
-          from: 'jsonapi',
-          [name]: { headers },
-        });
+        await source.update(
+          (t) => t.updateRecord({ ...record, ...recordIdentity }),
+          {
+            raiseNotFoundExceptions: true,
+            from: 'jsonapi',
+            [name]: { headers },
+          }
+        );
 
         ctx.status = 204;
       });
@@ -175,12 +174,8 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
           } = ctx;
           const recordIdentity = { type, id };
 
-          await source.query((q) => q.findRecord(recordIdentity), {
-            raiseNotFoundExceptions: true,
-            from: 'jsonapi',
-            [name]: { headers },
-          });
           await source.update((t) => t.removeRecord(recordIdentity), {
+            raiseNotFoundExceptions: true,
             from: 'jsonapi',
             [name]: { headers },
           });
