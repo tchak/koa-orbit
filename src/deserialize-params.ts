@@ -1,30 +1,7 @@
-import {
-  SortQBParam,
-  FilterQBParam,
-  FindRecordsTerm,
-  FindRelatedRecordsTerm,
-  RecordSchema,
-} from '@orbit/records';
+import { SortQBParam, FilterQBParam, RecordSchema } from '@orbit/records';
 import { JSONAPIResourceFieldSerializer } from '@orbit/jsonapi';
 
-export function queryBuilderParams(
-  schema: RecordSchema,
-  serializer: JSONAPIResourceFieldSerializer,
-  term: FindRecordsTerm | FindRelatedRecordsTerm,
-  type: string,
-  filter?: Record<string, string>,
-  sort?: string
-): FindRecordsTerm | FindRelatedRecordsTerm {
-  if (filter) {
-    term = term.filter(...filterQBParams(schema, serializer, type, filter));
-  }
-  if (sort) {
-    term = term.sort(...sortQBParams(schema, serializer, type, sort));
-  }
-  return term;
-}
-
-function filterQBParams(
+export function deserializeFilterQBParams(
   schema: RecordSchema,
   serializer: JSONAPIResourceFieldSerializer,
   type: string,
@@ -44,7 +21,7 @@ function filterQBParams(
   return params;
 }
 
-function sortQBParams(
+export function deserializeSortQBParams(
   schema: RecordSchema,
   serializer: JSONAPIResourceFieldSerializer,
   type: string,

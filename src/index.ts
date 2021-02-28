@@ -1,17 +1,32 @@
-import { Record as InitializedRecord } from '@orbit/records';
+import {
+  Record as InitializedRecord,
+  RecordQuery,
+  RecordSource,
+  RecordQueryable,
+  RecordUpdatable,
+} from '@orbit/records';
+import { buildQuery } from '@orbit/data';
 import {
   SerializerForFn,
   SerializerClassForFn,
   SerializerSettingsForFn,
 } from '@orbit/serializers';
+import { Request } from 'koa';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
 import qs from 'qs';
 
-import { ServerSource } from './server-source';
-import { queryBuilderParams } from './params';
+import {
+  deserializeFilterQBParams,
+  deserializeSortQBParams,
+} from './deserialize-params';
 import { serializeError } from './serialize-error';
 import { Serializer } from './serializer';
+
+export interface ServerSource
+  extends RecordSource,
+    RecordQueryable<unknown>,
+    RecordUpdatable<unknown> {}
 
 export interface ServerSettings {
   source: ServerSource;
@@ -20,6 +35,7 @@ export interface ServerSettings {
   serializerFor?: SerializerForFn;
   serializerClassFor?: SerializerClassForFn;
   serializerSettingsFor?: SerializerSettingsForFn;
+  filterQuery?: (query: RecordQuery, req: Request) => Promise<void>;
 }
 
 const CONTENT_TYPE = 'application/vnd.api+json; charset=utf-8';
@@ -35,6 +51,7 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
   } = settings;
   const name = source.name as string;
   const schema = source.schema;
+  const filterQuery = settings.filterQuery ?? (async () => true);
 
   const serializer = new Serializer({
     schema,
@@ -55,7 +72,8 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
         ctx.type = CONTENT_TYPE;
       }
     } catch (error) {
-      Object.assign(ctx, await serializeError(source, error));
+      await source.requestQueue.clear().catch(() => true);
+      Object.assign(ctx, serializeError(error));
       ctx.type = CONTENT_TYPE;
     }
   });
@@ -73,21 +91,39 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
         },
       } = ctx;
 
-      const records = await source.query<InitializedRecord[]>(
-        (q) =>
-          queryBuilderParams(
+      const term = source.queryBuilder.findRecords(type);
+      if (filter) {
+        term.filter(
+          ...deserializeFilterQBParams(
+            source.schema,
+            serializer.resourceFieldParamSerializer(),
+            type,
+            filter
+          )
+        );
+      }
+      if (sort) {
+        term.sort(
+          ...deserializeSortQBParams(
             schema,
             serializer.resourceFieldParamSerializer(),
-            q.findRecords(type),
             type,
-            filter,
             sort
-          ),
+          )
+        );
+      }
+      const query = buildQuery(
+        term.toQueryExpression(),
         {
           from: 'jsonapi',
           [name]: { headers, include },
-        }
+        },
+        undefined,
+        source.queryBuilder
       );
+
+      await filterQuery(query, ctx.request);
+      const records = await source.query<InitializedRecord[]>(query);
 
       ctx.status = 200;
       ctx.body = { data: records };
@@ -102,15 +138,20 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
         },
       } = ctx;
       const recordIdentity = { type, id };
-
-      const record = await source.query<InitializedRecord>(
-        (q) => q.findRecord(recordIdentity),
+      const term = source.queryBuilder.findRecord(recordIdentity);
+      const query = buildQuery(
+        term,
         {
           raiseNotFoundExceptions: true,
           from: 'jsonapi',
           [name]: { headers, include },
-        }
+        },
+        undefined,
+        source.queryBuilder
       );
+
+      await filterQuery(query, ctx.request);
+      const record = await source.query<InitializedRecord>(query);
 
       ctx.status = 200;
       ctx.body = { data: record };
@@ -207,22 +248,42 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
                 },
               } = ctx;
               const recordIdentity = { type, id };
-
-              const records = await source.query<InitializedRecord[]>(
-                (q) =>
-                  queryBuilderParams(
+              const term = source.queryBuilder.findRelatedRecords(
+                recordIdentity,
+                propertyName
+              );
+              if (filter) {
+                term.filter(
+                  ...deserializeFilterQBParams(
+                    source.schema,
+                    serializer.resourceFieldParamSerializer(),
+                    relationshipType as string,
+                    filter
+                  )
+                );
+              }
+              if (sort) {
+                term.sort(
+                  ...deserializeSortQBParams(
                     schema,
                     serializer.resourceFieldParamSerializer(),
-                    q.findRelatedRecords(recordIdentity, propertyName),
                     relationshipType as string,
-                    filter,
                     sort
-                  ),
+                  )
+                );
+              }
+              const query = buildQuery(
+                term,
                 {
                   from: 'jsonapi',
                   [name]: { headers, include },
-                }
+                },
+                undefined,
+                source.queryBuilder
               );
+
+              await filterQuery(query, ctx.request);
+              const records = await source.query<InitializedRecord[]>(query);
 
               ctx.status = 200;
               ctx.body = { data: records };
@@ -337,14 +398,19 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
                 },
               } = ctx;
               const recordIdentity = { type, id };
-
-              const record = await source.query<InitializedRecord>(
-                (q) => q.findRelatedRecord(recordIdentity, propertyName),
-                {
-                  from: 'jsonapi',
-                  [name]: { headers, include },
-                }
+              const term = source.queryBuilder.findRelatedRecord(
+                recordIdentity,
+                propertyName
               );
+              const query = buildQuery(
+                term,
+                { from: 'jsonapi', [name]: { headers, include } },
+                undefined,
+                source.queryBuilder
+              );
+
+              await filterQuery(query, ctx.request);
+              const record = await source.query<InitializedRecord>(query);
 
               ctx.status = 200;
               ctx.body = { data: record };
