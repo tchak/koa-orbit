@@ -1,36 +1,17 @@
-import {
-  Record as OrbitRecord,
-  RecordSource,
-  RecordQueryable,
-  RecordUpdatable,
-  RecordNotFoundException,
-  SchemaError,
-  RecordException,
-  RecordSchema,
-} from '@orbit/records';
-import { ClientError, ServerError } from '@orbit/data';
-import {
-  buildJSONAPISerializerFor,
-  JSONAPISerializers,
-  JSONAPIDocumentSerializer,
-  JSONAPIResourceFieldSerializer,
-} from '@orbit/jsonapi';
+import { Record as InitializedRecord } from '@orbit/records';
 import {
   SerializerForFn,
   SerializerClassForFn,
   SerializerSettingsForFn,
-  UnknownSerializer,
 } from '@orbit/serializers';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
 import qs from 'qs';
 
+import { ServerSource } from './server-source';
 import { queryBuilderParams } from './params';
-
-export interface ServerSource
-  extends RecordSource,
-    RecordQueryable<unknown>,
-    RecordUpdatable<unknown> {}
+import { serializeError } from './serialize-error';
+import { Serializer } from './serializer';
 
 export interface ServerSettings {
   source: ServerSource;
@@ -43,63 +24,6 @@ export interface ServerSettings {
 
 const CONTENT_TYPE = 'application/vnd.api+json; charset=utf-8';
 
-async function serializeError(
-  source: ServerSource,
-  error: Error
-): Promise<unknown> {
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  await source.requestQueue.clear().catch(() => {});
-
-  const id = source.schema.generateId();
-  const title = error.message;
-  let detail = '';
-  let code = 500;
-
-  if (error instanceof RecordNotFoundException) {
-    detail = error.description;
-    code = 404;
-  } else if (error instanceof ClientError || error instanceof ServerError) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    detail = (error as any).description;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    code = (error as any).response.status;
-  } else if (error instanceof SchemaError || error instanceof RecordException) {
-    detail = error.description;
-    code = 400;
-  }
-
-  return {
-    status: code,
-    body: { errors: [{ id, title, detail, code }] },
-  };
-}
-
-interface SerializerSettings {
-  schema: RecordSchema;
-  serializerFor?: SerializerForFn;
-  serializerClassFor?: SerializerClassForFn;
-  serializerSettingsFor?: SerializerSettingsForFn;
-}
-
-function buildSerializers(settings: SerializerSettings) {
-  const serializerFor = buildJSONAPISerializerFor(settings);
-
-  return {
-    document: serializerFor(
-      JSONAPISerializers.ResourceDocument
-    ) as JSONAPIDocumentSerializer,
-    resourceTypePath: serializerFor(
-      JSONAPISerializers.ResourceTypePath
-    ) as UnknownSerializer,
-    resourceFieldParam: serializerFor(
-      JSONAPISerializers.ResourceFieldParam
-    ) as JSONAPIResourceFieldSerializer,
-    resourceFieldPath: serializerFor(
-      JSONAPISerializers.ResourceFieldPath
-    ) as JSONAPIResourceFieldSerializer,
-  };
-}
-
 export function orbit(settings: ServerSettings): Router {
   const {
     source,
@@ -111,13 +35,13 @@ export function orbit(settings: ServerSettings): Router {
   } = settings;
   const name = source.name as string;
   const schema = source.schema;
-  const serializers = buildSerializers({
+
+  const serializer = new Serializer({
     schema,
     serializerFor,
     serializerClassFor,
     serializerSettingsFor,
   });
-
   const router = new Router({ prefix });
 
   router.use(bodyParser({ enableTypes: ['json'] }));
@@ -127,17 +51,17 @@ export function orbit(settings: ServerSettings): Router {
       await next();
 
       if (ctx.status === 200 || ctx.status === 201) {
-        ctx.body = serializers.document.serialize(ctx.body);
+        ctx.body = serializer.serializeDocument(ctx.body);
         ctx.type = CONTENT_TYPE;
       }
     } catch (error) {
-      Object.assign(ctx, serializeError(source, error));
+      Object.assign(ctx, await serializeError(source, error));
       ctx.type = CONTENT_TYPE;
     }
   });
 
   for (const type of Object.keys(schema.models)) {
-    const resourceType = serializers.resourceTypePath.serialize(type);
+    const resourceType = serializer.serializeResourceTypePath(type);
     const resourcePath = `/${resourceType}`;
     const resourcePathWithId = `/${resourceType}/:id`;
 
@@ -149,11 +73,11 @@ export function orbit(settings: ServerSettings): Router {
         },
       } = ctx;
 
-      const records: OrbitRecord[] = await source.query(
+      const records = await source.query<InitializedRecord[]>(
         (q) =>
           queryBuilderParams(
             schema,
-            serializers.resourceFieldParam,
+            serializer.resourceFieldParamSerializer(),
             q.findRecords(type),
             type,
             filter,
@@ -161,10 +85,7 @@ export function orbit(settings: ServerSettings): Router {
           ),
         {
           from: 'jsonapi',
-          [name]: {
-            headers,
-            include,
-          },
+          [name]: { headers, include },
         }
       );
 
@@ -180,16 +101,14 @@ export function orbit(settings: ServerSettings): Router {
           query: { include },
         },
       } = ctx;
+      const recordIdentity = { type, id };
 
-      const record: OrbitRecord = await source.query(
-        (q) => q.findRecord({ type, id }),
+      const record = await source.query<InitializedRecord>(
+        (q) => q.findRecord(recordIdentity),
         {
           raiseNotFoundExceptions: true,
           from: 'jsonapi',
-          [name]: {
-            headers,
-            include,
-          },
+          [name]: { headers, include },
         }
       );
 
@@ -206,18 +125,15 @@ export function orbit(settings: ServerSettings): Router {
           },
         } = ctx;
 
-        ctx.request.body.data.id = '0';
-        const { data } = serializers.document.deserialize(ctx.request.body);
-        delete (data as any).id;
+        const uninitializedRecord = serializer.deserializeUninitializedDocument(
+          ctx.request.body
+        );
 
-        const record: OrbitRecord = await source.update(
-          (t) => t.addRecord(data as OrbitRecord),
+        const record = await source.update<InitializedRecord>(
+          (t) => t.addRecord(uninitializedRecord),
           {
             from: 'jsonapi',
-            [name]: {
-              headers,
-              include,
-            },
+            [name]: { headers, include },
           }
         );
 
@@ -229,20 +145,21 @@ export function orbit(settings: ServerSettings): Router {
       });
 
       router.patch(`updateRecord(${type})`, resourcePathWithId, async (ctx) => {
-        const { data } = serializers.document.deserialize(ctx.request.body);
+        const {
+          headers,
+          params: { id },
+        } = ctx;
+        const recordIdentity = { type, id };
+        const record = serializer.deserializeDocument(ctx.request.body);
 
-        await source.query((q) => q.findRecord(data as OrbitRecord), {
+        await source.query((q) => q.findRecord(recordIdentity), {
           raiseNotFoundExceptions: true,
           from: 'jsonapi',
-          [name]: {
-            headers: ctx.headers,
-          },
+          [name]: { headers },
         });
-        await source.update((t) => t.updateRecord(data as OrbitRecord), {
+        await source.update((t) => t.updateRecord(record), {
           from: 'jsonapi',
-          [name]: {
-            headers: ctx.headers,
-          },
+          [name]: { headers },
         });
 
         ctx.status = 204;
@@ -256,8 +173,14 @@ export function orbit(settings: ServerSettings): Router {
             headers,
             params: { id },
           } = ctx;
+          const recordIdentity = { type, id };
 
-          await source.update((t) => t.removeRecord({ type, id }), {
+          await source.query((q) => q.findRecord(recordIdentity), {
+            raiseNotFoundExceptions: true,
+            from: 'jsonapi',
+            [name]: { headers },
+          });
+          await source.update((t) => t.removeRecord(recordIdentity), {
             from: 'jsonapi',
             [name]: { headers },
           });
@@ -270,9 +193,9 @@ export function orbit(settings: ServerSettings): Router {
     schema.eachRelationship(
       type,
       (propertyName, { kind, type: relationshipType }) => {
-        const relationshipName = serializers.resourceFieldPath.serialize(
+        const relationshipName = serializer.serializeResourceFieldPath(
           propertyName,
-          { type: relationshipType as string }
+          relationshipType
         );
         const relationshipPath = `${resourcePathWithId}/${relationshipName}`;
 
@@ -288,23 +211,21 @@ export function orbit(settings: ServerSettings): Router {
                   query: { filter, sort, include },
                 },
               } = ctx;
+              const recordIdentity = { type, id };
 
-              const records: OrbitRecord[] = await source.query(
+              const records = await source.query<InitializedRecord[]>(
                 (q) =>
                   queryBuilderParams(
                     schema,
-                    serializers.resourceFieldParam,
-                    q.findRelatedRecords({ type, id }, propertyName),
+                    serializer.resourceFieldParamSerializer(),
+                    q.findRelatedRecords(recordIdentity, propertyName),
                     relationshipType as string,
                     filter,
                     sort
                   ),
                 {
                   from: 'jsonapi',
-                  [name]: {
-                    headers,
-                    include,
-                  },
+                  [name]: { headers, include },
                 }
               );
 
@@ -322,16 +243,17 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = serializers.document.deserialize(
+                const recordIdentity = { type, id };
+                const records = serializer.deserializeDocuments(
                   ctx.request.body
                 );
 
                 await source.update(
                   (q) =>
                     q.replaceRelatedRecords(
-                      { type, id },
+                      recordIdentity,
                       propertyName,
-                      data as OrbitRecord[]
+                      records
                     ),
                   {
                     from: 'jsonapi',
@@ -351,17 +273,18 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = serializers.document.deserialize(
+                const recordIdentity = { type, id };
+                const records = serializer.deserializeDocuments(
                   ctx.request.body
                 );
 
                 await source.update(
                   (q) =>
-                    (data as OrbitRecord[]).map((identity) =>
+                    records.map((record) =>
                       q.addToRelatedRecords(
-                        { type, id },
+                        recordIdentity,
                         propertyName,
-                        identity
+                        record
                       )
                     ),
                   {
@@ -382,17 +305,18 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = serializers.document.deserialize(
+                const recordIdentity = { type, id };
+                const records = serializer.deserializeDocuments(
                   ctx.request.body
                 );
 
                 await source.update(
                   (q) =>
-                    (data as OrbitRecord[]).map((identity) =>
+                    records.map((record) =>
                       q.removeFromRelatedRecords(
-                        { type, id },
+                        recordIdentity,
                         propertyName,
-                        identity
+                        record
                       )
                     ),
                   {
@@ -417,14 +341,13 @@ export function orbit(settings: ServerSettings): Router {
                   query: { include },
                 },
               } = ctx;
-              const record: OrbitRecord = await source.query(
-                (q) => q.findRelatedRecord({ type, id }, propertyName),
+              const recordIdentity = { type, id };
+
+              const record = await source.query<InitializedRecord>(
+                (q) => q.findRelatedRecord(recordIdentity, propertyName),
                 {
                   from: 'jsonapi',
-                  [name]: {
-                    headers,
-                    include,
-                  },
+                  [name]: { headers, include },
                 }
               );
 
@@ -442,16 +365,15 @@ export function orbit(settings: ServerSettings): Router {
                   headers,
                   params: { id },
                 } = ctx;
-                const { data } = serializers.document.deserialize(
-                  ctx.request.body
-                );
+                const recordIdentity = { type, id };
+                const record = serializer.deserializeDocument(ctx.request.body);
 
                 await source.update(
                   (q) =>
                     q.replaceRelatedRecord(
-                      { type, id },
+                      recordIdentity,
                       propertyName,
-                      data as OrbitRecord
+                      record
                     ),
                   {
                     from: 'jsonapi',

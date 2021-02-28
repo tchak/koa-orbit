@@ -1,6 +1,7 @@
 import Koa from 'koa';
-import supertest, { Response } from 'supertest';
 import qs from 'qs';
+
+import { request } from './helpers';
 
 export interface Subject {
   app?: Koa;
@@ -243,64 +244,7 @@ export default function (subject: Subject, sourceName: string): void {
   });
 }
 
-interface InjectOptions {
-  url: string;
-  query?: unknown;
-  method?: string;
-  headers?: Record<string, string>;
-  payload?: unknown;
-}
-
-interface TestResponse {
-  status: number;
-  headers: Record<string, string>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  body: any;
-}
-
-async function request(
-  app: Koa,
-  options: InjectOptions
-): Promise<TestResponse> {
-  const url = options.url + (options.query ? `?${options.query}` : '');
-  const method = options.method || 'GET';
-  const headers = options.headers || {};
-  const body = options.payload as any;
-
-  headers['accept'] = 'application/vnd.api+json';
-  if (method === 'POST' || method === 'PATCH') {
-    headers['content-type'] = 'application/vnd.api+json';
-  }
-
-  let response: Response;
-  switch (method) {
-    case 'POST':
-      response = await supertest(app.callback())
-        .post(url)
-        .set(headers)
-        .send(body);
-      break;
-    case 'PATCH':
-      response = await supertest(app.callback())
-        .patch(url)
-        .set(headers)
-        .send(body);
-      break;
-    case 'DELETE':
-      response = await supertest(app.callback()).delete(url).set(headers);
-      break;
-    default:
-      response = await supertest(app.callback()).get(url).set(headers);
-  }
-
-  return {
-    status: response.status,
-    headers: response.header,
-    body: response.body,
-  };
-}
-
-function createEarth(app: Koa): Promise<TestResponse> {
+function createEarth(app: Koa) {
   return request(app, {
     method: 'POST',
     url: '/planets',
@@ -315,7 +259,7 @@ function createEarth(app: Koa): Promise<TestResponse> {
   });
 }
 
-function createMoon(app: Koa, earthId: string): Promise<TestResponse> {
+function createMoon(app: Koa, earthId: string) {
   return request(app, {
     method: 'POST',
     url: '/moons',
@@ -338,25 +282,25 @@ function createMoon(app: Koa, earthId: string): Promise<TestResponse> {
   });
 }
 
-function getPlanet(app: Koa, id: string): Promise<TestResponse> {
+function getPlanet(app: Koa, id: string) {
   return request(app, {
     url: `/planets/${id}`,
   });
 }
 
-function getPlanets(app: Koa): Promise<TestResponse> {
+function getPlanets(app: Koa) {
   return request(app, {
     url: '/planets',
   });
 }
 
-function getPlanetMoons(app: Koa, id: string): Promise<TestResponse> {
+function getPlanetMoons(app: Koa, id: string) {
   return request(app, {
     url: `/planets/${id}/moons`,
   });
 }
 
-function createTypedModel(app: Koa): Promise<TestResponse> {
+function createTypedModel(app: Koa) {
   return request(app, {
     method: 'POST',
     url: '/typed-models',
@@ -373,7 +317,7 @@ function createTypedModel(app: Koa): Promise<TestResponse> {
   });
 }
 
-function createTag(app: Koa): Promise<TestResponse> {
+function createTag(app: Koa) {
   return request(app, {
     method: 'POST',
     url: '/tags',
@@ -385,7 +329,7 @@ function createTag(app: Koa): Promise<TestResponse> {
   });
 }
 
-async function createTags(app: Koa): Promise<void> {
+async function createTags(app: Koa) {
   await request(app, {
     method: 'POST',
     url: '/tags',
@@ -424,7 +368,7 @@ async function createTags(app: Koa): Promise<void> {
   });
 }
 
-function createArticle(app: Koa, tagId: string): Promise<TestResponse> {
+function createArticle(app: Koa, tagId: string) {
   return request(app, {
     method: 'POST',
     url: '/articles',
