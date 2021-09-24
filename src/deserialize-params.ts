@@ -1,13 +1,13 @@
-import { SortQBParam, FilterQBParam, RecordSchema } from '@orbit/records';
+import { SortParam, FilterParam, RecordSchema } from '@orbit/records';
 import { JSONAPIResourceFieldSerializer } from '@orbit/jsonapi';
 
-export function deserializeFilterQBParams(
+export function deserializeFilterParams(
   schema: RecordSchema,
   serializer: JSONAPIResourceFieldSerializer,
   type: string,
   filter: Record<string, string>
-): FilterQBParam[] {
-  const params: FilterQBParam[] = [];
+): FilterParam[] {
+  const params: FilterParam[] = [];
   for (const property in filter) {
     const attribute = serializer.deserialize(property, { type }) as string;
     if (schema.hasAttribute(type, attribute)) {
@@ -21,13 +21,13 @@ export function deserializeFilterQBParams(
   return params;
 }
 
-export function deserializeSortQBParams(
+export function deserializeSortParams(
   schema: RecordSchema,
   serializer: JSONAPIResourceFieldSerializer,
   type: string,
   sort: string
-): SortQBParam[] {
-  const params: SortQBParam[] = [];
+): SortParam[] {
+  const params: SortParam[] = [];
   for (const property of sort.split(',')) {
     const desc = property.startsWith('-');
     const attribute = serializer.deserialize(

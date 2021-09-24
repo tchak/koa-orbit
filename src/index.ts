@@ -17,8 +17,8 @@ import bodyParser from 'koa-bodyparser';
 import qs from 'qs';
 
 import {
-  deserializeFilterQBParams,
-  deserializeSortQBParams,
+  deserializeFilterParams,
+  deserializeSortParams,
 } from './deserialize-params';
 import { serializeError } from './serialize-error';
 import { Serializer } from './serializer';
@@ -94,7 +94,7 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
       const term = source.queryBuilder.findRecords(type);
       if (filter) {
         term.filter(
-          ...deserializeFilterQBParams(
+          ...deserializeFilterParams(
             source.schema,
             serializer.resourceFieldParamSerializer(),
             type,
@@ -104,7 +104,7 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
       }
       if (sort) {
         term.sort(
-          ...deserializeSortQBParams(
+          ...deserializeSortParams(
             schema,
             serializer.resourceFieldParamSerializer(),
             type,
@@ -254,7 +254,7 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
               );
               if (filter) {
                 term.filter(
-                  ...deserializeFilterQBParams(
+                  ...deserializeFilterParams(
                     source.schema,
                     serializer.resourceFieldParamSerializer(),
                     relationshipType as string,
@@ -264,7 +264,7 @@ export default function createJSONAPIRouter(settings: ServerSettings): Router {
               }
               if (sort) {
                 term.sort(
-                  ...deserializeSortQBParams(
+                  ...deserializeSortParams(
                     schema,
                     serializer.resourceFieldParamSerializer(),
                     relationshipType as string,

@@ -12,10 +12,10 @@ import {
   ResourceDocument,
 } from '@orbit/jsonapi';
 import {
+  Serializer as OrbitSerializer,
   SerializerForFn,
   SerializerClassForFn,
   SerializerSettingsForFn,
-  UnknownSerializer,
 } from '@orbit/serializers';
 
 export interface SerializerSettings {
@@ -70,7 +70,7 @@ export class Serializer {
   serializeResourceTypePath(type: string): string {
     const serializer = this.#serializerFor(
       JSONAPISerializers.ResourceTypePath
-    ) as UnknownSerializer;
+    ) as OrbitSerializer;
     return serializer.serialize(type) as string;
   }
 
