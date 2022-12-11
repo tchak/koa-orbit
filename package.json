@@ -10,7 +10,7 @@
     "@orbit/records": "^0.17.0-beta.14",
     "koa-bodyparser": "^4.3.0",
     "koa-router": "^10.0.0",
-    "qs": "^6.9.6"
+    "qs": "^6.9.7"
   },
   "devDependencies": {
     "@orbit/memory": "^0.17.0-beta.14",
